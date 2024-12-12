@@ -1,31 +1,36 @@
-import { Navigate, Outlet } from "react-router-dom";
-import { useEffect, useState } from "react";
-import api from "../services/api";
+import { Navigate, Outlet, useLocation } from "react-router-dom";
+import Cookies from "js-cookie";
 
 interface PrivateRouteProps {
     redirectTo: string;
 }
 
 const PrivateRoute: React.FC<PrivateRouteProps> = ({ redirectTo }) => {
-    const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
+    const isAuthenticated = Boolean(Cookies.get("auth_token"));
+    const location = useLocation();
 
-    useEffect(() => {
-        const checkAuth = async () => {
-            try {
-                await api.get("/auth/verify");
-                setIsAuthenticated(true);
-            } catch (error) {
-                setIsAuthenticated(false);
-            }
+    if (!isAuthenticated) {
+        const urlParams = new URLSearchParams(location.search);
+
+        const chartParams = {
+            startDate: urlParams.get("startDate"),
+            endDate: urlParams.get("endDate"),
+            ageGroup: urlParams.get("ageGroup"),
+            gender: urlParams.get("gender"),
         };
 
-        checkAuth();
-    }, []);
+        if (Object.values(chartParams).some((value) => value)) {
+            Cookies.set("dashboardFilters", JSON.stringify(chartParams), { expires: 0.5 });
+        }
 
-    if (isAuthenticated === null) {
-        return <div>Loading...</div>;
+        return (
+            <Navigate
+                to={`${redirectTo}?redirect=${encodeURIComponent(location.pathname + location.search)}`}
+            />
+        );
     }
-    return isAuthenticated ? <Outlet /> : <Navigate to={redirectTo} />;
+
+    return <Outlet />;
 };
 
 export default PrivateRoute;

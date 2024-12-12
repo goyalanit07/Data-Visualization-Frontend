@@ -1,18 +1,25 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { login } from "../services/api";
 
 const Login = () => {
-    const [email, setEmail] = useState("");
-    const [password, setPassword] = useState("");
+    const [email, setEmail] = useState("test@email.com");
+    const [password, setPassword] = useState("123456")
     const navigate = useNavigate();
+    const location = useLocation();
 
     const handleLogin = async () => {
         try {
             await login(email, password);
-            navigate("/");
+
+            const redirectParam = new URLSearchParams(location.search).get("redirect");
+            if (redirectParam) {
+                navigate(decodeURIComponent(redirectParam));
+            } else {
+                navigate("/");
+            }
         } catch (error: any) {
-            console.error(error.message);
+            console.error("Login failed", error);
         }
     };
 
