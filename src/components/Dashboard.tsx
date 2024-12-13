@@ -3,42 +3,36 @@ import { Line, Bar } from "react-chartjs-2";
 import Cookies from "js-cookie";
 import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend, LineElement, PointElement } from 'chart.js';
 import { useLocation, useNavigate } from 'react-router-dom';
+import zoom from 'chartjs-plugin-zoom';
 import api, { logout } from "../services/api";
+import { AgeGroup, Gender, BarType, Filters, BarData, LineData } from "../types/chartTypes";
 
-ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend, LineElement, PointElement);
+ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend, LineElement, PointElement, zoom);
 
-type BarData = {
-  data: {
-    A: number;
-    B: number;
-    C: number;
-    D: number;
-    E: number;
-    F: number;
-  };
-};
+const defaultFilters: Filters = {
+  startDate: '2022-10-04',
+  endDate: '2022-10-10',
+  ageGroup: '',
+  gender: '',
+  selectedBar: 'A'
+}
 
-type LineData = {
-  data: { date: string; value: number }[];
-};
-
-type Filters = {
-  startDate: string;
-  endDate: string;
-  ageGroup: string;
-  gender: string;
+const toQueryString = (filters: Filters): string => {
+  return new URLSearchParams(
+    Object.entries(filters)
+      .filter(([_, value]) => value !== null) // Remove null values
+      .reduce((acc, [key, value]) => {
+        acc[key] = value?.toString() || ''; // Convert values to strings
+        return acc;
+      }, {} as Record<string, string>)
+  ).toString();
 };
 
 const Dashboard: React.FC = () => {
+
   const [barData, setBarData] = useState<BarData | null>(null);
   const [lineData, setLineData] = useState<LineData | null>(null);
-  const [selectedBar, setSelectedBar] = useState<string>('A');
-  const [filters, setFilters] = useState<Filters>({
-    startDate: '2022-10-04',
-    endDate: '2022-10-10',
-    ageGroup: '',
-    gender: ''
-  });
+  const [filters, setFilters] = useState<Filters>(defaultFilters);
 
   const location = useLocation();
   const navigate = useNavigate();
@@ -47,16 +41,22 @@ const Dashboard: React.FC = () => {
     const savedFilters = Cookies.get('dashboardFilters');
 
     if (savedFilters) {
-      setFilters(JSON.parse(savedFilters));
+      try {
+        setFilters(JSON.parse(savedFilters));
+      } catch (error) {
+        console.error("Failed to parse filters from cookies", error);
+        Cookies.remove('dashboardFilters');
+      }
     }
 
     const params = new URLSearchParams(location.search);
-    const ageGroup = params.get('ageGroup') || filters.ageGroup;
-    const gender = params.get('gender') || filters.gender;
-    const startDate = params.get('startDate') || filters.startDate;
-    const endDate = params.get('endDate') || filters.endDate;
+    const ageGroup: AgeGroup = (params.get('ageGroup') as AgeGroup) || filters.ageGroup;
+    const gender: Gender = (params.get('gender') as Gender) || filters.gender;
+    const startDate: string = params.get('startDate') || filters.startDate;
+    const endDate: string = params.get('endDate') || filters.endDate;
+    const selectedBar: BarType = (params.get('selectedBar') as BarType) || filters.selectedBar;
 
-    setFilters({ startDate, endDate, ageGroup, gender });
+    setFilters({ startDate, endDate, ageGroup, gender, selectedBar });
 
     fetchData(startDate, endDate, ageGroup, gender, selectedBar);
   }, [location]);
@@ -68,9 +68,9 @@ const Dashboard: React.FC = () => {
   const fetchData = async (
     startDate: string,
     endDate: string,
-    ageGroup: string,
-    gender: string,
-    feature: string
+    ageGroup: AgeGroup,
+    gender: Gender,
+    feature: BarType
   ) => {
     try {
       const barResponse = await api.get<BarData>("/analytics/bar-chart", {
@@ -88,27 +88,44 @@ const Dashboard: React.FC = () => {
   };
 
   const handleBarClick = (index: number) => {
-    const feature = ['A', 'B', 'C', 'D', 'E', 'F'][index];
-    setSelectedBar(feature);
+    const barFeatures: BarType[] = ['A', 'B', 'C', 'D', 'E', 'F'];
+    const feature = barFeatures[index];
+
+    setFilters((prevFilters) => {
+      const updatedFilters = {
+        ...prevFilters,
+        selectedBar: feature,
+      };
+      updateUrl(updatedFilters);
+      return updatedFilters;
+    });
 
     fetchData(filters.startDate, filters.endDate, filters.ageGroup, filters.gender, feature);
   };
 
   const generateShareableLink = () => {
-    const query = new URLSearchParams(filters).toString();
+    const query = toQueryString(filters);
     return `${window.location.origin}/?${query}`;
   };
 
   const updateUrl = (newFilters: Filters) => {
-    const query = new URLSearchParams(newFilters).toString();
+    const query = toQueryString(newFilters);
     navigate(`/?${query}`, { replace: true });
   };
 
   const handleFilterChange = (newFilters: Filters) => {
     setFilters(newFilters);
     updateUrl(newFilters);
-    fetchData(newFilters.startDate, newFilters.endDate, newFilters.ageGroup, newFilters.gender, selectedBar);
+    fetchData(newFilters.startDate, newFilters.endDate, newFilters.ageGroup, newFilters.gender, newFilters.selectedBar);
   };
+
+  const resetFilters = () => {
+    setFilters(defaultFilters);
+    Cookies.remove('dashboardFilters');
+    updateUrl(defaultFilters);
+    fetchData(defaultFilters.startDate, defaultFilters.endDate, defaultFilters.ageGroup, defaultFilters.gender, defaultFilters.selectedBar);
+  };
+
 
   const barChartData = {
     labels: ['A', 'B', 'C', 'D', 'E', 'F'],
@@ -123,7 +140,7 @@ const Dashboard: React.FC = () => {
         barData?.data?.F
       ],
       backgroundColor: ['A', 'B', 'C', 'D', 'E', 'F'].map(feature =>
-        feature === selectedBar ? '#FF6347' : '#42A5F5'
+        feature === filters.selectedBar ? '#FF6347' : '#42A5F5'
       ),
       borderColor: '#1E88E5',
       borderWidth: 1,
@@ -135,7 +152,7 @@ const Dashboard: React.FC = () => {
   const lineChartData = {
     labels: lineData?.data?.map((entry) => entry.date),
     datasets: [{
-      label: `Feature ${selectedBar} Trend`,
+      label: `Feature ${filters.selectedBar} Trend`,
       data: lineData?.data?.map((entry) => entry.value),
       borderColor: '#FF6347',
       borderWidth: 2,
@@ -167,9 +184,9 @@ const Dashboard: React.FC = () => {
             <label className="flex flex-col">
               Age Group:
               <select
-                value={filters.ageGroup}
+                value={filters.ageGroup || ''}
                 onChange={(e) => {
-                  const newFilters = { ...filters, ageGroup: e.target.value };
+                  const newFilters = { ...filters, ageGroup: e.target.value as AgeGroup };
                   handleFilterChange(newFilters);
                 }}
                 className="mt-1 p-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -183,9 +200,9 @@ const Dashboard: React.FC = () => {
             <label className="flex flex-col">
               Gender:
               <select
-                value={filters.gender}
+                value={filters.gender || ""}
                 onChange={(e) => {
-                  const newFilters = { ...filters, gender: e.target.value };
+                  const newFilters = { ...filters, gender: e.target.value as Gender };
                   handleFilterChange(newFilters);
                 }}
                 className="mt-1 p-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -196,7 +213,6 @@ const Dashboard: React.FC = () => {
               </select>
             </label>
 
-            {/* Date range selector */}
             <label className="flex flex-col">
               Start Date:
               <input
@@ -223,6 +239,15 @@ const Dashboard: React.FC = () => {
               />
             </label>
           </div>
+
+          <div className="mt-4">
+            <button
+              onClick={resetFilters}
+              className="bg-red-500 text-white py-2 px-4 rounded hover:bg-red-600 transition-colors"
+            >
+              Reset Filters
+            </button>
+          </div>
         </div>
       </div>
       <div className="flex flex-wrap justify-center space-x-4">
@@ -242,7 +267,7 @@ const Dashboard: React.FC = () => {
                     position: 'top',
                   },
                 },
-                onClick: (event, elements) => {
+                onClick: (_, elements) => {
                   if (elements.length > 0) {
                     const index = elements[0].index;
                     handleBarClick(index);
@@ -265,6 +290,21 @@ const Dashboard: React.FC = () => {
                 plugins: {
                   legend: {
                     position: 'top',
+                  },
+                  zoom: {
+                    zoom: {
+                      wheel: {
+                        enabled: true,
+                      },
+                      pinch: {
+                        enabled: true,
+                      },
+                      mode: 'x',
+                    },
+                    pan: {
+                      enabled: true,
+                      mode: 'x',
+                    },
                   },
                 },
               }}

@@ -1,10 +1,11 @@
-import { useState } from "react";
+import React, { useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { login } from "../services/api";
 
-const Login = () => {
-    const [email, setEmail] = useState("test@email.com");
-    const [password, setPassword] = useState("123456")
+const Login: React.FC = () => {
+
+    const [email, setEmail] = useState<string>("");
+    const [password, setPassword] = useState<string>("");
     const navigate = useNavigate();
     const location = useLocation();
 
