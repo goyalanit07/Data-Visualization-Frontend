@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import { signup } from "../services/api";
 
 const Signup: React.FC = () => {
@@ -47,9 +47,9 @@ const Signup: React.FC = () => {
                 </div>
                 <p className="mt-4 text-center text-gray-600">
                     Already have an account?{" "}
-                    <a href="/login" className="text-blue-500 hover:underline">
+                    <Link to="/login" className="text-blue-500 hover:underline">
                         Login here
-                    </a>
+                    </Link>
                 </p>
             </div>
         </div>
