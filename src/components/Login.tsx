@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { useNavigate, useLocation, Link } from "react-router-dom";
 import { login } from "../services/api";
+import Cookies from "js-cookie";
 
 const Login: React.FC = () => {
 
@@ -11,9 +12,12 @@ const Login: React.FC = () => {
 
     const handleLogin = async () => {
         try {
-            await login(email, password);
+            const response: any = await login(email, password);
+            Cookies.set('auth_token', response.token);
 
             const redirectParam = new URLSearchParams(location.search).get("redirect");
+            console.log("redirectParam-------", redirectParam);
+
             if (redirectParam) {
                 navigate(decodeURIComponent(redirectParam));
             } else {
